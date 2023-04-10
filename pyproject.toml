@@ -1,0 +1,20 @@
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "figaro"
+description = "FIGARO: Controllable Generation using Expert and Learned Features"
+authors = [
+    { name = "Dimitri von Rütte" },
+]
+readme = "README.md"
+urls = {github = "https://github.com/dvruette/figaro-v2"}
+dynamic = ["version"]
+
+[tool.setuptools]
+packages = ["figaro"]
+
+[tool.setuptools.dynamic]
+version = {attr = "figaro.__version__"}

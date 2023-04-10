@@ -1,0 +1,31 @@
+output_dir: ./results
+logging_dir: ./logs
+data:
+  input_dir: ./lmd_full
+  max_n_files: -1
+
+model:
+  name: figaro
+  encoder_layers: 6
+  decoder_layers: 6
+  num_attention_heads: 8
+  intermediate_size: 2048
+  d_model: 512
+  vq_vae:
+    n_codes: 2048
+    n_groups: 16
+    d_latent: 1024
+
+checkpoint: null
+vae_checkpoint: null
+
+batch_size: 128
+accumulate_grads: 4
+
+epochs: 16
+warmup_steps: 4000
+max_steps: 1e20
+max_training_steps: 100_000
+learning_steps: 1e-4
+lr_schedule: "const"
+context_size: 256

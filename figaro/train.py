@@ -4,6 +4,7 @@ import torch
 
 import os
 import glob
+import hydra
 
 import pytorch_lightning as pl
 
@@ -12,41 +13,8 @@ from models.vae import VqVaeModule
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-ROOT_DIR = os.getenv('ROOT_DIR', './lmd_full')
-OUTPUT_DIR = os.getenv('OUTPUT_DIR', './results')
-LOGGING_DIR = os.getenv('LOGGING_DIR', './logs')
-MAX_N_FILES = int(os.getenv('MAX_N_FILES', -1))
-
-MODEL = os.getenv('MODEL', None)
-MODEL_NAME = os.getenv('MODEL_NAME', None)
-N_CODES = int(os.getenv('N_CODES', 2048))
-N_GROUPS = int(os.getenv('N_GROUPS', 16))
-D_MODEL = int(os.getenv('D_MODEL', 512))
-D_LATENT = int(os.getenv('D_LATENT', 1024))
-
-CHECKPOINT = os.getenv('CHECKPOINT', None)
-VAE_CHECKPOINT = os.getenv('VAE_CHECKPOINT', None)
-
-BATCH_SIZE = int(os.getenv('BATCH_SIZE', 128))
-TARGET_BATCH_SIZE = int(os.getenv('TARGET_BATCH_SIZE', 512))
-
-EPOCHS = int(os.getenv('EPOCHS', '16'))
-WARMUP_STEPS = int(float(os.getenv('WARMUP_STEPS', 4000)))
-MAX_STEPS = int(float(os.getenv('MAX_STEPS', 1e20)))
-MAX_TRAINING_STEPS = int(float(os.getenv('MAX_TRAINING_STEPS', 100_000)))
-LEARNING_RATE = float(os.getenv('LEARNING_RATE', 1e-4))
-LR_SCHEDULE = os.getenv('LR_SCHEDULE', 'const')
-CONTEXT_SIZE = int(os.getenv('CONTEXT_SIZE', 256))
-
-ACCUMULATE_GRADS = max(1, TARGET_BATCH_SIZE//BATCH_SIZE)
-
-N_WORKERS = min(os.cpu_count(), float(os.getenv('N_WORKERS', 'inf')))
-if device.type == 'cuda':
-  N_WORKERS = min(N_WORKERS, 8*torch.cuda.device_count())
-N_WORKERS = int(N_WORKERS)
-
-
-def main():
+@hydra.main(config_path="config", config_name="train", version_base=None)
+def main(ctx):
   ### Define available models ###
 
   available_models = [
@@ -62,52 +30,23 @@ def main():
     'figaro-no-meta',
     'baseline',
   ]
-
-  assert MODEL is not None, 'the MODEL needs to be specified'
-  assert MODEL in available_models, f'unknown MODEL: {MODEL}'
+  
+  if ctx.model.name not in available_models:
+    raise ValueError(f"Unknown model: {ctx.model.name}")
 
 
   ### Create data loaders ###
-  midi_files = glob.glob(os.path.join(ROOT_DIR, '**/*.mid'), recursive=True)
-  if MAX_N_FILES > 0:
-    midi_files = midi_files[:MAX_N_FILES]
+  midi_files = glob.glob(os.path.join(ctx.data.input_dir, '**/*.mid'), recursive=True)
+  if ctx.data.max_n_files > 0:
+    midi_files = midi_files[:ctx.data.max_n_files]
 
   if len(midi_files) == 0:
-    print(f"WARNING: No MIDI files were found at '{ROOT_DIR}'. Did you download the dataset to the right location?")
-    exit()
-
-
-  MAX_CONTEXT = min(1024, CONTEXT_SIZE)
-
-  if MODEL in ['figaro-learned', 'figaro'] and VAE_CHECKPOINT:
-    vae_module = VqVaeModule.load_from_checkpoint(checkpoint_path=VAE_CHECKPOINT)
-    vae_module.cpu()
-    vae_module.freeze()
-    vae_module.eval()
-
-  else:
-    vae_module = None
+    raise ValueError(f"WARNING: No MIDI files were found at '{ctx.data.input_dir}'. Did you download the dataset to the right location?")
 
 
   ### Create and train model ###
 
   # load model from checkpoint if available
-
-  if CHECKPOINT:
-    model_class = {
-      'vq-vae': VqVaeModule,
-      'figaro-learned': Seq2SeqModule,
-      'figaro-expert': Seq2SeqModule,
-      'figaro': Seq2SeqModule,
-      'figaro-inst': Seq2SeqModule,
-      'figaro-chord': Seq2SeqModule,
-      'figaro-meta': Seq2SeqModule,
-      'figaro-no-inst': Seq2SeqModule,
-      'figaro-no-chord': Seq2SeqModule,
-      'figaro-no-meta': Seq2SeqModule,
-      'baseline': Seq2SeqModule,
-    }[MODEL]
-    model = model_class.load_from_checkpoint(checkpoint_path=CHECKPOINT)
 
   else:
     seq2seq_kwargs = {
